@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanner Stok Barang</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+body{font-family:Arial;background:#f1f4f9;padding:15px}
+main{background:white;padding:20px;border-radius:15px;max-width:500px;margin:auto}
+input,select,button{width:100%;padding:14px;margin:8px 0;box-sizing:border-box;font-size:16px}
+button{background:#1761bd;color:white;border:0;border-radius:8px}
+#status{padding:12px;background:#eee;margin-top:12px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main>
+<h2>Scanner Barcode Stok</h2>
+
+<label>Jenis Transaksi</label>
+<select id="jenis">
+<option value="MASUK">Barang Masuk</option>
+<option value="KELUAR">Barang Keluar</option>
+</select>
+
+<label>Jumlah</label>
+<input id="jumlah" type="number" value="1" min="1">
+
+<label>Nama Petugas</label>
+<input id="petugas" placeholder="Nama petugas">
+
+<label>Catatan</label>
+<input id="catatan" placeholder="Catatan (opsional)">
+
+<button onclick="mulai()">MULAI SCAN</button>
+<div id="reader"></div>
+<div id="status">Scanner siap digunakan.</div>
+</main>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbwqA_JeellXGocrfo17T5bKqCc8SHWAf4Fg42HVPnGmiIS5j6vn_i26nq1vwuZDP4B_Rw/exec";
+
+let scanner;
+let proses=false;
+
+function status(teks){
+ document.getElementById("status").textContent=teks;
+}
+
+function mulai(){
+ if(scanner)return;
+ scanner=new Html5Qrcode("reader");
+ scanner.start(
+  {facingMode:"environment"},
+  {fps:10,qrbox:250},
+  async(barcode)=>{
+   if(proses)return;
+   proses=true;
+   await scanner.pause(true);
+   kirim(barcode);
+  }
+ ).then(()=>status("Kamera aktif. Arahkan ke barcode."))
+ .catch(e=>{
+  scanner=null;
+  status("Kamera gagal: "+e);
+ });
+}
+
+function kirim(barcode){
+ const jenis=document.getElementById("jenis").value;
+ const jumlah=document.getElementById("jumlah").value;
+ const petugas=document.getElementById("petugas").value.trim();
+ const catatan=document.getElementById("catatan").value.trim();
+
+ if(!petugas){
+  status("Isi nama petugas dahulu.");
+  proses=false;
+  scanner.resume();
+  return;
+ }
+
+ status("Barcode: "+barcode+"\nMengirim transaksi...");
+
+ const callback="hasilScan"+Date.now();
+ window[callback]=function(data){
+  status(data.ok
+   ? "BERHASIL!\n"+data.nama+"\n"+data.jenis+" : "+data.jumlah
+   : "GAGAL: "+data.error);
+  delete window[callback];
+  proses=false;
+  scanner.resume();
+ };
+
+ const script=document.createElement("script");
+ script.src=API+"?action=record&barcode="+encodeURIComponent(barcode)+
+ "&jenis="+encodeURIComponent(jenis)+
+ "&jumlah="+encodeURIComponent(jumlah)+
+ "&petugas="+encodeURIComponent(petugas)+
+ "&catatan="+encodeURIComponent(catatan)+
+ "&callback="+callback;
+ script.onerror=()=>{
+  status("Gagal menghubungi server Apps Script.");
+  proses=false;
+  scanner.resume();
+ };
+ document.body.appendChild(script);
+}
+</script>
+</body>
+</html>
