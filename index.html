@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -6,9 +7,7 @@
 <title>Input Stok Barang</title>
 
 <style>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   font-family: Arial, sans-serif;
@@ -60,9 +59,7 @@ button {
   font-weight: bold;
 }
 
-button:disabled {
-  opacity: .5;
-}
+button:disabled { opacity: .5; }
 
 #status {
   margin-top: 15px;
@@ -105,7 +102,7 @@ button:disabled {
 <input
   type="text"
   id="cariBarang"
-  placeholder="Ketik nama atau kode barang..."
+  placeholder="Ketik nama, kode, atau barcode..."
   oninput="cariBarang()"
 >
 
@@ -135,9 +132,7 @@ SIMPAN TRANSAKSI
 MUAT ULANG DAFTAR BARANG
 </button>
 
-<div id="status">
-Menghubungkan ke Google Sheets...
-</div>
+<div id="status">Menghubungkan ke Google Sheets...</div>
 
 <p class="note">
 Pilih barang dari daftar. Transaksi akan otomatis dicatat ke Google Sheets.
@@ -146,37 +141,7 @@ Tidak perlu menggunakan kamera atau scan barcode.
 
 </main>
 
-<script>function cariBarang() {
-  const kata = document
-    .getElementById("cariBarang")
-    .value.toLowerCase()
-    .trim();
-
-  const pilihan = document.getElementById("barang");
-
-  const hasil = daftarBarang.filter(function(item) {
-    return (
-      item.nama.toLowerCase().includes(kata) ||
-      item.kode.toLowerCase().includes(kata) ||
-      item.barcode.toLowerCase().includes(kata)
-    );
-  });
-
-  pilihan.innerHTML =
-    '<option value="">-- Pilih Barang --</option>';
-
-  hasil.forEach(function(item) {
-    const option = document.createElement("option");
-    option.value = item.barcode;
-    option.textContent =
-      item.nama + " | Kode: " + item.kode +
-      " | Stok: " + item.stok;
-
-    pilihan.appendChild(option);
-  });
-
-  tampilkanStok();
-}
+<script>
 const API =
 "https://script.google.com/macros/s/AKfycbwqA_JeellXGocrfo17T5bKqCc8SHWAf4Fg42HVPnGmiIS5j6vn_i26nq1vwuZDP4B_Rw/exec";
 
@@ -231,10 +196,53 @@ function kirimJSONP(parameter) {
   });
 }
 
-async function muatBarang() {
-  const pilihan = document.getElementById("cariBarang").value = "";
+// FUNGSI PENCARIAN BARANG
+function cariBarang() {
+  const kata = document.getElementById("cariBarang")
+    .value.toLowerCase().trim();
 
-  pilihan.innerHTML =
+  const dropdown = document.getElementById("barang");
+
+  dropdown.innerHTML = "";
+
+  const awal = document.createElement("option");
+  awal.value = "";
+  awal.textContent = "-- Pilih Barang --";
+  dropdown.appendChild(awal);
+
+  const hasil = daftarBarang.filter(function(item) {
+    return (
+      String(item.nama || "").toLowerCase().includes(kata) ||
+      String(item.kode || "").toLowerCase().includes(kata) ||
+      String(item.barcode || "").toLowerCase().includes(kata)
+    );
+  });
+
+  hasil.forEach(function(item) {
+    const option = document.createElement("option");
+    option.value = item.barcode;
+    option.textContent =
+      item.nama + " | Kode: " + item.kode +
+      " | Stok: " + item.stok;
+
+    dropdown.appendChild(option);
+  });
+
+  tampilkanStok();
+
+  if (hasil.length === 0) {
+    tampilStatus("Barang tidak ditemukan.");
+  }
+}
+
+// MEMUAT DAFTAR BARANG
+async function muatBarang() {
+  const inputCari = document.getElementById("cariBarang");
+  const dropdown = document.getElementById("barang");
+
+  // Perbaikan utama: pisahkan input pencarian dan dropdown.
+  inputCari.value = "";
+  dropdown.innerHTML =
     '<option value="">Memuat daftar barang...</option>';
 
   try {
@@ -243,50 +251,42 @@ async function muatBarang() {
     });
 
     if (!hasil || !hasil.ok) {
-      throw new Error(hasil.error || "Gagal mengambil daftar barang.");
+      throw new Error(
+        hasil && hasil.error
+          ? hasil.error
+          : "Gagal mengambil daftar barang."
+      );
     }
 
     daftarBarang = hasil.items || [];
 
-    pilihan.innerHTML =
-      '<option value="">-- Pilih Nama Barang --</option>';
-
-    daftarBarang.forEach(function(item) {
-      const option = document.createElement("option");
-      option.value = item.barcode;
-      option.textContent =
-        item.nama + " | Kode: " + item.kode +
-        " | Stok: " + item.stok;
-
-      pilihan.appendChild(option);
-    });
-
-    if (daftarBarang.length === 0) {
-      pilihan.innerHTML =
-        '<option value="">Belum ada barang terdaftar</option>';
-    }
+    cariBarang();
 
     tampilStatus(
       "Daftar barang berhasil dimuat: " +
       daftarBarang.length + " barang."
     );
 
-    tampilkanStok();
+    if (daftarBarang.length === 0) {
+      dropdown.innerHTML =
+        '<option value="">Belum ada barang terdaftar</option>';
+    }
 
   } catch (err) {
-    pilihan.innerHTML =
+    dropdown.innerHTML =
       '<option value="">Gagal memuat barang</option>';
 
     tampilStatus("ERROR:\n" + err.message);
   }
 }
 
+// MENAMPILKAN STOK
 function tampilkanStok() {
   const barcode = document.getElementById("barang").value;
   const info = document.getElementById("stokInfo");
 
   const item = daftarBarang.find(function(x) {
-    return x.barcode === barcode;
+    return String(x.barcode) === String(barcode);
   });
 
   if (!item) {
@@ -300,6 +300,7 @@ function tampilkanStok() {
     "\nStok tersedia: " + item.stok;
 }
 
+// MENYIMPAN TRANSAKSI
 async function simpanTransaksi() {
   const barcode = document.getElementById("barang").value;
   const jenis = document.getElementById("jenis").value;
@@ -357,7 +358,9 @@ async function simpanTransaksi() {
     } else {
       tampilStatus(
         "TRANSAKSI GAGAL:\n" +
-        (hasil && hasil.error ? hasil.error : "Respons server tidak dikenal.")
+        (hasil && hasil.error
+          ? hasil.error
+          : "Respons server tidak dikenal.")
       );
     }
 
